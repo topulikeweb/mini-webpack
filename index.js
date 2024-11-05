@@ -15,12 +15,20 @@ const plugins = minWebpackConfig.default.plugins
 const hooks = {
     emitFile: new SyncHook(["context"])
 }
+
+const assetCache = new Map();
+
 /**
  * 获取文件的依赖等信息
  * @param {*} filePath 
  * @returns 
  */
 function createAsset(filePath) {
+    // 检查缓存中是否已经有该模块
+    if (assetCache.has(filePath)) {
+        return assetCache.get(filePath);
+    }
+
     let source = fs.readFileSync(filePath, {
         encoding: 'utf-8'
     });
@@ -54,32 +62,45 @@ function createAsset(filePath) {
         presets: [['@babel/preset-env', { modules: 'commonjs' }]]
     });
 
-    return {
+    // 创建 asset 对象
+    const asset = {
         id: id++,
         deps,
         filePath,
         mapping: {},
         code,
     };
+
+    // 将创建的 asset 存入缓存
+    assetCache.set(filePath, asset);
+
+    return asset;
 }
 
 function createGraph() {
-    // 获取minWebpack.config.js文件的配置
-    const minMain = createAsset(entry)
-    const queue = [minMain]
+    const minMain = createAsset(entry);
+    const queue = [minMain];
+
     for (const asset of queue) {
         asset.deps.forEach(relativePath => {
-            const { mapping } = asset
-            const source = createAsset(path.resolve('min-pack-example', relativePath))
+            const { mapping } = asset;
+            const fullPath = path.resolve('min-pack-example', relativePath);
 
-            console.log(path.resolve(entry))
-            mapping[relativePath] = source.id
-            // 这里会不断将文件的依赖读取 main.js->foo.js->bar.js .....
-            queue.push(source)
+            // 检查缓存，避免重复处理
+            if (!assetCache.has(fullPath)) {
+                const source = createAsset(fullPath);
+                mapping[relativePath] = source.id;
+                // 这里会造成循环引用问题
+                queue.push(source);
+            } else {
+                // 如果已经在缓存中，直接使用缓存中的 ID
+                mapping[relativePath] = assetCache.get(fullPath).id;
+            }
         });
     }
-    return queue
+    return queue;
 }
+
 
 const graph = createGraph()
 console.log(graph)
