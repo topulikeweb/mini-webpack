@@ -9,4 +9,4 @@ node index.js
   - min-pack-example 用于制作demo
   
 ## 技术脑图
-![技术脑图](https://postimg.cc/9Rzfxbcg)
+![alt text](asset/mini-webpack.png)
